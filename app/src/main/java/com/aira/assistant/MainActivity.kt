@@ -4,10 +4,10 @@ import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.BatteryManager
 import android.os.Bundle
+import android.provider.AlarmClock
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -21,7 +21,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,20 +28,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,26 +44,30 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import android.content.pm.PackageManager
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private var speechRecognizer: SpeechRecognizer? = null
     private var textToSpeech: TextToSpeech? = null
     private var ttsReady = false
+    private val heardText = mutableStateOf("आपकी आवाज़ का इंतज़ार है…")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         textToSpeech = TextToSpeech(this, this)
         setContent {
             AiraScreen(
-                onListen = { beginListening() },
-                onSpeak = { speak(it) },
-                onCommand = { handleCommand(it) }
+                heardText = heardText.value,
+                onListen = { beginListening() }
             )
         }
     }
@@ -95,27 +92,38 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
     private fun beginListening() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            Toast.makeText(this, "इस फोन में speech recognition उपलब्ध नहीं है", Toast.LENGTH_LONG).show()
+            heardText.value = "इस फोन में speech recognition उपलब्ध नहीं है"
+            Toast.makeText(this, heardText.value, Toast.LENGTH_LONG).show()
             return
         }
 
         speechRecognizer?.destroy()
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).also { recognizer ->
             recognizer.setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) = Unit
+                override fun onReadyForSpeech(params: Bundle?) {
+                    heardText.value = "सुन रही हूँ…"
+                }
                 override fun onBeginningOfSpeech() = Unit
                 override fun onRmsChanged(rmsdB: Float) = Unit
                 override fun onBufferReceived(buffer: ByteArray?) = Unit
-                override fun onEndOfSpeech() = Unit
+                override fun onEndOfSpeech() {
+                    heardText.value = "समझ रही हूँ…"
+                }
                 override fun onError(error: Int) {
-                    Toast.makeText(this@MainActivity, "आवाज़ समझ नहीं आई, फिर कोशिश करें", Toast.LENGTH_SHORT).show()
+                    heardText.value = "आवाज़ समझ नहीं आई। फिर कोशिश करें।"
+                    Toast.makeText(this@MainActivity, heardText.value, Toast.LENGTH_SHORT).show()
                 }
                 override fun onResults(results: Bundle?) {
                     val spoken = results
                         ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         ?.firstOrNull()
                         .orEmpty()
-                    if (spoken.isNotBlank()) handleCommand(spoken)
+                    if (spoken.isNotBlank()) {
+                        heardText.value = spoken
+                        handleCommand(spoken)
+                    } else {
+                        heardText.value = "कुछ सुनाई नहीं दिया। फिर कोशिश करें।"
+                    }
                 }
                 override fun onPartialResults(partialResults: Bundle?) = Unit
                 override fun onEvent(eventType: Int, params: Bundle?) = Unit
@@ -145,15 +153,15 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 openApp("com.spotify.music", "Spotify")
             }
             normalized.contains("alarm") || normalized.contains("अलार्म") -> {
-                val alarmIntent = Intent(AlarmClock.ACTION_SET_ALARM)
-                launchIntent(alarmIntent, "अलार्म ऐप उपलब्ध नहीं है")
+                launchIntent(Intent(AlarmClock.ACTION_SET_ALARM), "अलार्म ऐप उपलब्ध नहीं है")
             }
             normalized.contains("call") || normalized.contains("कॉल") || normalized.contains("फोन लगाओ") -> {
                 val number = command.filter { it.isDigit() || it == '+' }
                 if (number.isNotBlank()) {
                     launchIntent(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number")), "डायलर नहीं खुल पाया")
                 } else {
-                    speak("किस नंबर पर कॉल करना है? नंबर डायलर में डालकर कॉल कर सकते हैं।")
+                    speak("किस नंबर पर कॉल करना है? मैं डायलर खोल सकती हूँ।")
+                    launchIntent(Intent(Intent.ACTION_DIAL), "डायलर नहीं खुल पाया")
                 }
             }
             normalized.contains("message") || normalized.contains("sms") || normalized.contains("मैसेज") -> {
@@ -165,10 +173,10 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 speak("आपके फोन की बैटरी $level प्रतिशत है।")
             }
             normalized.contains("time") || normalized.contains("समय") || normalized.contains("टाइम") -> {
-                val time = java.text.SimpleDateFormat("h:mm a", Locale("en", "IN")).format(java.util.Date())
+                val time = SimpleDateFormat("h:mm a", Locale("en", "IN")).format(Date())
                 speak("अभी समय $time है।")
             }
-            else -> speak("मैंने सुना: $command. अभी मैं यह कमांड नहीं कर सकती।")
+            else -> speak("मैंने सुना: $command. यह कमांड अभी उपलब्ध नहीं है।")
         }
     }
 
@@ -200,16 +208,15 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
 @Composable
 private fun AiraScreen(
-    onListen: () -> Unit,
-    onSpeak: (String) -> Unit,
-    onCommand: (String) -> Unit
+    heardText: String,
+    onListen: () -> Unit
 ) {
-    var heardText by remember { mutableStateOf("आपकी आवाज़ का इंतज़ार है…") }
-    var commandText by remember { mutableStateOf("") }
-
+    val context = LocalContext.current
+    var permissionDenied by remember { mutableStateOf(false) }
     val microphonePermission = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
+        permissionDenied = !granted
         if (granted) onListen()
     }
 
@@ -270,24 +277,21 @@ private fun AiraScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "माइक दबाएँ और AIRA से बात करें",
+                        text = if (permissionDenied) "माइक अनुमति के बिना बोलकर कमांड नहीं चलेगी" else "माइक दबाएँ और AIRA से बात करें",
                         color = Color(0xFF9DB6E8),
-                        fontSize = 13.sp
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center
                     )
                 }
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Button(
                         onClick = {
-                            if (ContextCompat.checkSelfPermission(
-                                    androidx.compose.ui.platform.LocalContext.current,
-                                    Manifest.permission.RECORD_AUDIO
-                                ) == PackageManager.PERMISSION_GRANTED
-                            ) {
-                                onListen()
-                            } else {
-                                microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
-                            }
+                            val granted = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.RECORD_AUDIO
+                            ) == PackageManager.PERMISSION_GRANTED
+                            if (granted) onListen() else microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
                         },
                         modifier = Modifier.size(82.dp),
                         shape = CircleShape,
