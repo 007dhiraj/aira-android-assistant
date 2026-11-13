@@ -152,6 +152,23 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             normalized.contains("spotify") || normalized.contains("स्पॉटिफाई") -> {
                 openApp("com.spotify.music", "Spotify")
             }
+            normalized.contains("maps") || normalized.contains("मैप") || normalized.contains("नक्शा") -> {
+                openApp("com.google.android.apps.maps", "Google Maps")
+            }
+            normalized.contains("chrome") || normalized.contains("क्रोम") || normalized.contains("ब्राउज़र") -> {
+                openApp("com.android.chrome", "Chrome")
+            }
+            normalized.contains("camera") || normalized.contains("कैमरा") -> {
+                launchIntent(Intent("android.media.action.IMAGE_CAPTURE"), "कैमरा ऐप उपलब्ध नहीं है")
+            }
+            normalized.contains("settings") || normalized.contains("सेटिंग") -> {
+                launchIntent(Intent(android.provider.Settings.ACTION_SETTINGS), "सेटिंग्स नहीं खुलीं")
+            }
+            normalized.contains("search") || normalized.contains("सर्च") || normalized.contains("खोजो") -> {
+                val query = command.replace(Regex("(?i)\\b(search|google|सर्च|खोजो)\\b"), "").trim()
+                val searchIntent = Intent(Intent.ACTION_WEB_SEARCH).putExtra(android.app.SearchManager.QUERY, query)
+                launchIntent(searchIntent, "वेब सर्च उपलब्ध नहीं है")
+            }
             normalized.contains("alarm") || normalized.contains("अलार्म") -> {
                 launchIntent(Intent(AlarmClock.ACTION_SET_ALARM), "अलार्म ऐप उपलब्ध नहीं है")
             }
@@ -220,98 +237,120 @@ private fun AiraScreen(
         if (granted) onListen()
     }
 
+    val quickCommands = listOf("YouTube खोलो", "WhatsApp खोलो", "बैटरी कितनी है?", "अभी समय क्या है?")
+
     MaterialTheme {
-        Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF080D1B)) {
+        Surface(modifier = Modifier.fillMaxSize(), color = Color(0xFF070B16)) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            listOf(Color(0xFF101B35), Color(0xFF080D1B), Color(0xFF11152B))
+                            listOf(Color(0xFF17284A), Color(0xFF0A1021), Color(0xFF070B16))
                         )
                     )
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween
+                    .padding(horizontal = 22.dp, vertical = 26.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Text(
-                        text = "A I R A",
-                        color = Color.White,
-                        fontSize = 34.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 8.sp
-                    )
-                    Text(
-                        text = "YOUR PERSONAL VOICE ASSISTANT",
-                        color = Color(0xFF9DB6E8),
-                        fontSize = 10.sp,
-                        letterSpacing = 2.sp
-                    )
-                }
-
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("A I R A", color = Color.White, fontSize = 29.sp,
+                            fontWeight = FontWeight.Bold, letterSpacing = 6.sp)
+                        Text("YOUR PERSONAL AI ASSISTANT", color = Color(0xFF9DB6E8),
+                            fontSize = 9.sp, letterSpacing = 1.8.sp)
+                    }
                     Box(
                         modifier = Modifier
-                            .size(190.dp)
-                            .background(Color(0xFF192B50), CircleShape),
+                            .background(Color(0xFF173D35), CircleShape)
+                            .padding(horizontal = 12.dp, vertical = 7.dp)
+                    ) {
+                        Text("● READY", color = Color(0xFF72E2B1), fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(44.dp))
+                Box(
+                    modifier = Modifier.size(214.dp).background(Color(0xFF142849), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier.size(178.dp).background(Color(0xFF203F70), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(150.dp)
-                                .background(Color(0xFF294A80), CircleShape),
+                                .size(140.dp)
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(Color(0xFF75C7FF), Color(0xFF477CEB), Color(0xFF765CE8))
+                                    ),
+                                    CircleShape
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
                             Text("A", color = Color.White, fontSize = 76.sp, fontWeight = FontWeight.Light)
                         }
                     }
-                    Spacer(modifier = Modifier.height(28.dp))
-                    Text(
-                        text = heardText,
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = if (permissionDenied) "माइक अनुमति के बिना बोलकर कमांड नहीं चलेगी" else "माइक दबाएँ और AIRA से बात करें",
-                        color = Color(0xFF9DB6E8),
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center
-                    )
                 }
 
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Button(
-                        onClick = {
-                            val granted = ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.RECORD_AUDIO
-                            ) == PackageManager.PERMISSION_GRANTED
-                            if (granted) onListen() else microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
-                        },
-                        modifier = Modifier.size(82.dp),
-                        shape = CircleShape,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B83E6))
-                    ) {
-                        androidx.compose.material3.Icon(
-                            imageVector = Icons.Filled.Mic,
-                            contentDescription = "बोलने के लिए दबाएँ",
-                            tint = Color.White,
-                            modifier = Modifier.size(34.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(20.dp))
-                    Text(
-                        text = "AIRA • VERSION 0.1",
-                        color = Color(0xFF687DA8),
-                        fontSize = 11.sp,
-                        letterSpacing = 1.5.sp
+                Spacer(modifier = Modifier.height(30.dp))
+                Text("नमस्ते! मैं AIRA हूँ", color = Color.White, fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold)
+                Spacer(modifier = Modifier.height(9.dp))
+                Text(
+                    text = heardText,
+                    color = Color(0xFFD5E2FA),
+                    fontSize = 15.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                        .background(Color(0x332A4775), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 16.dp, vertical = 15.dp)
+                )
+                Spacer(modifier = Modifier.height(22.dp))
+
+                Button(
+                    onClick = {
+                        val granted = ContextCompat.checkSelfPermission(
+                            context, Manifest.permission.RECORD_AUDIO
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (granted) onListen()
+                        else microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
+                    },
+                    modifier = Modifier.size(78.dp),
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4B83E6))
+                ) {
+                    androidx.compose.material3.Icon(
+                        imageVector = Icons.Filled.Mic,
+                        contentDescription = "बोलने के लिए दबाएँ",
+                        tint = Color.White,
+                        modifier = Modifier.size(32.dp)
                     )
                 }
+                Spacer(modifier = Modifier.height(9.dp))
+                Text(
+                    if (permissionDenied) "माइक अनुमति दें और फिर कोशिश करें"
+                    else "बात करने के लिए माइक दबाएँ",
+                    color = Color(0xFF9DB6E8), fontSize = 12.sp
+                )
+
+                Spacer(modifier = Modifier.height(28.dp))
+                Text("TRY SAYING", color = Color(0xFF8098C4), fontSize = 10.sp,
+                    letterSpacing = 2.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(10.dp))
+                quickCommands.forEach { example ->
+                    Text("›  $example", color = Color(0xFFD6E4FF), fontSize = 13.sp,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+                Text("AIRA  •  VERSION 0.1.0", color = Color(0xFF64799F),
+                    fontSize = 10.sp, letterSpacing = 1.5.sp)
             }
         }
     }
