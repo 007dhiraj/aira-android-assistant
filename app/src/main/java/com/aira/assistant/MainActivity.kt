@@ -34,6 +34,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -62,13 +65,22 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private var textToSpeech: TextToSpeech? = null
     private var ttsReady = false
     private val heardText = mutableStateOf("आपकी आवाज़ का इंतज़ार है…")
+    private val selectedVoice = mutableStateOf("female_natural")
+    private val voicePrefs by lazy { getSharedPreferences("aira_voice", Context.MODE_PRIVATE) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        selectedVoice.value = voicePrefs.getString("preset", "female_natural") ?: "female_natural"
         textToSpeech = TextToSpeech(this, this)
         setContent {
             AiraScreen(
                 heardText = heardText.value,
+                selectedVoiceId = selectedVoice.value,
+                onVoiceSelected = { id ->
+                    selectedVoice.value = id
+                    voicePrefs.edit().putString("preset", id).apply()
+                    speak("नमस्ते, मैं AIRA हूँ। अब मेरी आवाज़ ऐसी होगी।")
+                },
                 onListen = { beginListening() }
             )
         }
@@ -88,6 +100,10 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
     private fun speak(message: String) {
         if (ttsReady) {
+            val preset = VOICE_PRESETS.firstOrNull { it.id == selectedVoice.value }
+                ?: VOICE_PRESETS.first()
+            textToSpeech?.setPitch(preset.pitch)
+            textToSpeech?.setSpeechRate(preset.rate)
             textToSpeech?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "aira-response")
         }
     }
@@ -237,8 +253,25 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 }
 
 @Composable
+private data class VoicePreset(val id: String, val label: String, val pitch: Float, val rate: Float)
+
+private val VOICE_PRESETS = listOf(
+    VoicePreset("female_soft", "महिला · सॉफ्ट", 1.18f, 0.96f),
+    VoicePreset("female_natural", "महिला · नेचुरल", 1.10f, 1.00f),
+    VoicePreset("female_bright", "महिला · ब्राइट", 1.28f, 1.04f),
+    VoicePreset("female_sweet", "महिला · स्वीट", 1.22f, 0.90f),
+    VoicePreset("male_deep", "पुरुष · डीप", 0.82f, 0.96f),
+    VoicePreset("male_natural", "पुरुष · नेचुरल", 0.92f, 1.00f),
+    VoicePreset("male_bright", "पुरुष · ब्राइट", 0.98f, 1.06f),
+    VoicePreset("neutral_calm", "न्यूट्रल · शांत", 1.00f, 0.90f),
+    VoicePreset("neutral_clear", "न्यूट्रल · क्लियर", 1.00f, 1.08f)
+)
+
+@Composable
 private fun AiraScreen(
     heardText: String,
+    selectedVoiceId: String,
+    onVoiceSelected: (String) -> Unit,
     onListen: () -> Unit
 ) {
     val context = LocalContext.current
@@ -323,7 +356,9 @@ private fun AiraScreen(
                         .background(Color(0x332A4775), RoundedCornerShape(16.dp))
                         .padding(horizontal = 16.dp, vertical = 15.dp)
                 )
-                Spacer(modifier = Modifier.height(22.dp))
+                Spacer(modifier = Modifier.height(18.dp))
+                VoiceSelector(selectedVoiceId = selectedVoiceId, onVoiceSelected = onVoiceSelected)
+                Spacer(modifier = Modifier.height(18.dp))
 
                 Button(
                     onClick = {
@@ -366,5 +401,39 @@ private fun AiraScreen(
                     fontSize = 10.sp, letterSpacing = 1.5.sp)
             }
         }
+    }
+}
+
+
+@Composable
+private fun VoiceSelector(
+    selectedVoiceId: String,
+    onVoiceSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selected = VOICE_PRESETS.firstOrNull { it.id == selectedVoiceId } ?: VOICE_PRESETS[1]
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text("अपनी पसंद की आवाज़ चुनें", color = Color(0xFF9DB6E8), fontSize = 12.sp)
+        Spacer(modifier = Modifier.height(7.dp))
+        Box {
+            OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+                Text("🔊  ${selected.label}  ·  बदलें", color = Color.White)
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                VOICE_PRESETS.forEach { preset ->
+                    DropdownMenuItem(
+                        text = { Text(preset.label) },
+                        onClick = {
+                            expanded = false
+                            onVoiceSelected(preset.id)
+                        }
+                    )
+                }
+            }
+        }
+        Text(
+            "चुनी हुई आवाज़ सेव रहेगी। आवाज़ का वास्तविक प्रकार फोन के Text-to-Speech इंजन पर निर्भर है।",
+            color = Color(0xFF8098C4), fontSize = 10.sp
+        )
     }
 }
