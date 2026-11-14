@@ -137,6 +137,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "hi-IN")
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
         }
         speechRecognizer?.startListening(intent)
     }
@@ -195,7 +197,16 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 val time = SimpleDateFormat("h:mm a", Locale("en", "IN")).format(Date())
                 speak("अभी समय $time है।")
             }
-            else -> speak("मैंने सुना: $command. यह कमांड अभी उपलब्ध नहीं है।")
+            else -> {
+                // No paid AI/API key: send general questions to a free web search.
+                // The user can read results in their browser; this does not pretend to be an AI answer.
+                val searchUri = Uri.parse("https://www.google.com/search?q=" + Uri.encode(command))
+                speak("मैं इंटरनेट पर इसका जवाब खोज रही हूँ।")
+                launchIntent(
+                    Intent(Intent.ACTION_VIEW, searchUri),
+                    "इंटरनेट सर्च नहीं खुल पाई। कृपया इंटरनेट कनेक्शन जाँचें।"
+                )
+            }
         }
     }
 
