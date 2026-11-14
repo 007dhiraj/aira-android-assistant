@@ -266,7 +266,6 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 }
 
-@Composable
 private data class VoicePreset(val id: String, val label: String, val pitch: Float, val rate: Float)
 
 private val VOICE_PRESETS = listOf(
