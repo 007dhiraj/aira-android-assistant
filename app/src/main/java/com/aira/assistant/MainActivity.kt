@@ -81,7 +81,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                     voicePrefs.edit().putString("preset", id).apply()
                     speak("नमस्ते, मैं AIRA हूँ। अब मेरी आवाज़ ऐसी होगी।")
                 },
-                onListen = { beginListening() }
+                onListen = { beginListening() },
+                onOpenTtsSettings = { openTextToSpeechSettings() }
             )
         }
     }
@@ -105,6 +106,19 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             textToSpeech?.setPitch(preset.pitch)
             textToSpeech?.setSpeechRate(preset.rate)
             textToSpeech?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "aira-response")
+        }
+    }
+
+    private fun openTextToSpeechSettings() {
+        val settingsIntent = Intent("com.android.settings.TTS_SETTINGS")
+        try {
+            startActivity(settingsIntent)
+        } catch (_: ActivityNotFoundException) {
+            try {
+                startActivity(Intent(android.provider.Settings.ACTION_SETTINGS))
+            } catch (_: ActivityNotFoundException) {
+                Toast.makeText(this, "फोन की सेटिंग्स नहीं खुल पाईं", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -272,7 +286,8 @@ private fun AiraScreen(
     heardText: String,
     selectedVoiceId: String,
     onVoiceSelected: (String) -> Unit,
-    onListen: () -> Unit
+    onListen: () -> Unit,
+    onOpenTtsSettings: () -> Unit
 ) {
     val context = LocalContext.current
     var permissionDenied by remember { mutableStateOf(false) }
@@ -358,7 +373,19 @@ private fun AiraScreen(
                 )
                 Spacer(modifier = Modifier.height(18.dp))
                 VoiceSelector(selectedVoiceId = selectedVoiceId, onVoiceSelected = onVoiceSelected)
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = onOpenTtsSettings,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("⚙ फोन की आवाज़ / TTS सेटिंग्स", color = Color.White)
+                }
+                Text(
+                    "ज़रूरत पड़ने पर यहाँ से हिंदी आवाज़ डाउनलोड करें या फोन का TTS इंजन बदलें।",
+                    color = Color(0xFF8098C4), fontSize = 10.sp,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Button(
                     onClick = {
