@@ -174,6 +174,8 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun handleCommand(rawCommand: String) {
+        // Resolve installed apps locally before any web-search fallback.
+        if (tryOpenInstalledApp(rawCommand)) return;
         val command = rawCommand.trim()
         val normalized = command.lowercase(Locale.ROOT)
         when {
@@ -238,6 +240,69 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
                 )
             }
         }
+    }
+
+
+    private fun normalizeAppText(value: String): String =
+        value.lowercase(Locale.ROOT).replace(Regex("[^\\\\p{L}\\\\p{N}]"), "")
+
+    private fun tryOpenInstalledApp(rawCommand: String): Boolean {
+        val command = rawCommand.trim()
+        val normalized = normalizeAppText(command)
+        val openWords = listOf("open", "launch", "start", "khol", "kholo", "chalao", "चलाओ", "खोल", "खोलो", "ओपन")
+        val soundsLikeOpen = openWords.any { normalized.contains(normalizeAppText(it)) }
+        if (!soundsLikeOpen) return false
+
+        val aliases = listOf(
+            "jiohotstar", "hotstar", "youtube", "whatsapp", "instagram",
+            "facebook", "google pay", "gpay", "phonepe", "phone pe",
+            "paytm", "amazon", "flipkart", "spotify", "chrome"
+        )
+        val alias = aliases.firstOrNull { normalized.contains(normalizeAppText(it)) }
+        val installed = try {
+            packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
+        } catch (_: Exception) { emptyList() }
+
+        val apps = installed.mapNotNull { info ->
+            val label = try { packageManager.getApplicationLabel(info).toString() } catch (_: Exception) { "" }
+            val launch = packageManager.getLaunchIntentForPackage(info.packageName)
+            if (label.isBlank() || launch == null || info.packageName == packageName) null
+            else Triple(label, info.packageName, launch)
+        }
+
+        val match = if (alias != null) {
+            val key = normalizeAppText(alias)
+            apps.firstOrNull { (label, pkg, _) ->
+                normalizeAppText(label).contains(key) ||
+                    pkg.lowercase(Locale.ROOT).replace(".", "").contains(key)
+            } ?: if (key == "jiohotstar" || key == "hotstar") {
+                apps.firstOrNull { (label, pkg, _) ->
+                    normalizeAppText(label).contains("hotstar") || pkg.contains("hotstar", ignoreCase = true)
+                }
+            } else null
+        } else {
+            val query = command
+                .replace(Regex("(?i)\\\\b(open|launch|start|please|app)\\\\b"), " ")
+                .replace(Regex("(?i)\\\\b(khol|kholo|chalao)\\\\b"), " ")
+                .replace(Regex("[^\\\\p{L}\\\\p{N} ]"), " ").trim()
+            val key = normalizeAppText(query)
+            if (key.length < 2) null else apps.firstOrNull { (label, _, _) ->
+                val labelKey = normalizeAppText(label)
+                labelKey == key || labelKey.contains(key) || key.contains(labelKey)
+            }
+        }
+
+        if (match != null) {
+            val (label, _, launchIntent) = match
+            try {
+                startActivity(launchIntent)
+                speak("$label खोल रही हूँ।")
+            } catch (_: Exception) { speak("$label नहीं खुल पाया।") }
+            return true
+        }
+
+        speak("मुझे $command नाम का इंस्टॉल ऐप नहीं मिला।")
+        return true
     }
 
     private fun openApp(packageName: String, appName: String) {
